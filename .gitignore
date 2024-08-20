@@ -11,6 +11,7 @@ _create_ai_search_index.py
 backend*
 .amlignore
 .amlignore.amltmp
+.env.nvt
 
 # Distribution / packaging
 .Python
