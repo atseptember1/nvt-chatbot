@@ -1,3 +1,9 @@
 {
-    "appService.defaultWebAppToDeploy": "None"
+    "appService.defaultWebAppToDeploy": "None",
+    "appService.zipIgnorePattern": [
+        ".venv{,/**}",
+        ".env{,/**}",
+        "_pycache_{,/**}",
+        ".env.nvt{,/**}"
+    ]
 }
