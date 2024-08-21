@@ -5,6 +5,7 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional, Awaitable, Callable, Tuple, Type, Union
 import requests
 import asyncio
+import re
 
 from collections import OrderedDict
 import base64
@@ -248,9 +249,42 @@ def reduce_openapi_spec(spec: dict, dereference: bool = True) -> ReducedOpenAPIS
         endpoints=endpoints,
     )
 
+def extract_file_info(file_path):
+    file_name = os.path.basename(file_path)
+    pattern = r"(.+)\.pdf_page_(\d+)_chunk_(\d+)"
+    match = re.match(pattern, file_name)
+    if match:
+        filename = match.group(1)
+        page_number = int(match.group(2))
+        return filename, page_number
+    else:
+        return None
+
+def get_next_page(headers, params, file_name, file_number, sas_token, score, index):
+
+    search_payload = {
+        "filter": f"title eq '{file_name}.pdf_page_{file_number}_chunk_0'",
+    }
+
+    resp = requests.post(os.environ['AZURE_SEARCH_ENDPOINT'] + "/indexes/" + index + "/docs/search",
+                             data=json.dumps(search_payload), headers=headers, params=params)
+
+    next_page = resp.json()["value"][0]
+
+    result = {
+        "title": next_page['title'], 
+        "name": next_page['name'], 
+        "chunk": next_page['chunk'],
+        "location": next_page['location'] + sas_token if next_page['location'] else "",
+        "caption": "",
+        "score": score,
+        "index": index
+    }
+
+    return next_page["id"], result
 
 def get_search_results(query: str, indexes: list, 
-                       k: int = 5,
+                       k: int = 20,
                        reranker_threshold: int = 1,
                        sas_token: str = "") -> List[dict]:
     """Performs multi-index hybrid search and returns ordered dictionary with the combined results"""
@@ -297,13 +331,23 @@ def get_search_results(query: str, indexes: list,
                 
 
     topk = k
+    duplicate_guard = {}
         
     count = 0  # To keep track of the number of results added
     for id in sorted(content, key=lambda x: content[x]["score"], reverse=True):
-        ordered_content[id] = content[id]
-        count += 1
-        if count >= topk:  # Stop after adding topK results
-            break
+
+        file_name, file_number = extract_file_info(content[id]["title"])
+        path_to_check = f"{file_name}_{file_number}"
+        
+        if not(path_to_check in duplicate_guard):
+            ordered_content[id] = content[id]
+
+            next_page_id, next_page_content = get_next_page(headers, params, file_name, file_number+1, sas_token, content[id]["score"], index)
+            ordered_content[next_page_id] = next_page_content
+            duplicate_guard[path_to_check] = "existed"
+            count += 1
+            if count >= topk:  # Stop after adding topK results
+                break
 
     return ordered_content
 

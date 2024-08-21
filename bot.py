@@ -118,7 +118,7 @@ class MyBot(ActivityHandler):
 
         # DocSearch tool
         indexes = [os.environ['AZURE_SEARCH_INDEX']]
-        tools = [GetDocSearchResults_Tool(indexes=indexes, k=5, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])]
+        tools = [GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])]
 
         # Set LLM 
         llm = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
