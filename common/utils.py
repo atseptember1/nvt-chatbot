@@ -269,19 +269,22 @@ def get_next_page(headers, params, file_name, file_number, sas_token, score, ind
     resp = requests.post(os.environ['AZURE_SEARCH_ENDPOINT'] + "/indexes/" + index + "/docs/search",
                              data=json.dumps(search_payload), headers=headers, params=params)
 
-    next_page = resp.json()["value"][0]
-
-    result = {
-        "title": next_page['title'], 
-        "name": next_page['name'], 
-        "chunk": next_page['chunk'],
-        "location": next_page['location'] + sas_token if next_page['location'] else "",
-        "caption": "",
-        "score": score,
-        "index": index
-    }
-
-    return next_page["id"], result
+    if resp.json()["value"]:
+        next_page = resp.json()["value"][0]
+        
+        result = {
+            "title": next_page['title'], 
+            "name": next_page['name'], 
+            "chunk": next_page['chunk'],
+            "location": next_page['location'] + sas_token if next_page['location'] else "",
+            "caption": "",
+            "score": score,
+            "index": index
+        }
+    
+        return next_page["id"], result
+    else:
+        return None, None
 
 def get_search_results(query: str, indexes: list, 
                        k: int = 20,
@@ -343,7 +346,8 @@ def get_search_results(query: str, indexes: list,
             ordered_content[id] = content[id]
 
             next_page_id, next_page_content = get_next_page(headers, params, file_name, file_number+1, sas_token, content[id]["score"], index)
-            ordered_content[next_page_id] = next_page_content
+            if next_page_content is not None:
+                ordered_content[next_page_id] = next_page_content
             duplicate_guard[path_to_check] = "existed"
             count += 1
             if count >= topk:  # Stop after adding topK results
