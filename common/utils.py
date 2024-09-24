@@ -670,7 +670,7 @@ class BingSearchAgent(BaseTool):
     """Agent to interact with Bing"""
     
     name = "bing"
-    description = "useful when the questions includes the term: bing.\n"
+    description = "useful when the questions includes the term: @bing.\n"
     args_schema: Type[BaseModel] = SearchInput
 
     llm: AzureChatOpenAI
@@ -694,7 +694,7 @@ class BingSearchAgent(BaseTool):
         agent = create_openai_tools_agent(self.llm, tools, BINGSEARCH_PROMPT)
 
         self.agent_executor = AgentExecutor(agent=agent, tools=tools,
-                                            return_intermediate_steps=True,
+                                            return_intermediate_steps=False,
                                             callback_manager=self.callbacks,
                                             verbose=self.verbose,
                                             handle_parsing_errors=True)

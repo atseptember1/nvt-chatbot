@@ -26,9 +26,10 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 #custom libraries that we will use later in the app
 from common.utils import (
     GetDocSearchResults_Tool,
-    AGENT_DOCSEARCH_PROMPT
+    BingSearchAgent,
+    get_search_results
 )
-from common.prompts import CUSTOM_CHATBOT_PROMPT, WELCOME_MESSAGE
+from common.prompts import CUSTOM_CHATBOT_PROMPT, WELCOME_MESSAGE, AGENT_DOCSEARCH_PROMPT
 
 from botbuilder.core import ActivityHandler, TurnContext
 from botbuilder.schema import ChannelAccount, Activity, ActivityTypes
@@ -58,7 +59,7 @@ class BotServiceCallbackHandler(BaseCallbackHandler):
         await self.tc.send_activity(f"Tool: {serialized['name']}")
 
     async def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
-        await self.tc.send_activity(f"\u2611{action.log} ...")
+        # await self.tc.send_activity(f"\u2611{action.log} ...")
         await self.tc.send_activity(Activity(type=ActivityTypes.typing))
 
             
@@ -116,20 +117,33 @@ class MyBot(ActivityHandler):
         cb_handler = BotServiceCallbackHandler(turn_context)
         cb_manager = CallbackManager(handlers=[cb_handler])
 
-        # DocSearch tool
+        # Set LLM 
+        llm_docsearch = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
+                                        max_tokens=1500, callback_manager=cb_manager, streaming=True)
+        
+        llm_bingsearch = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
+                                        max_tokens=1500, callback_manager=cb_manager, streaming=True)
+
         indexes = [os.environ['AZURE_SEARCH_INDEX']]
+        search_retriever = GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])
+        search_results = search_retriever.invoke(input_text)
+        # DocSearch tool
         tools = [GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])]
 
-        # Set LLM 
-        llm = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
-                              max_tokens=1500, callback_manager=cb_manager, streaming=True)
-        
-        # Binding LLM to tools
-        # llm_with_tools = llm.bind_tools(tools)
+        agent = create_openai_tools_agent(llm_docsearch, tools, AGENT_DOCSEARCH_PROMPT)
 
-        # Setup Agent
-        agent = create_openai_tools_agent(llm, tools, AGENT_DOCSEARCH_PROMPT)
-        agent_executor = AgentExecutor(agent=agent, tools=tools)
+        if not(search_results) or "@bing" in input_text:
+            # BingSearch tool
+
+            tools = [BingSearchAgent(llm=llm_bingsearch, k=5, callback_manager=cb_manager, 
+                             name="bing",
+                             description="useful when the questions includes the term: bing",
+                             verbose=False)]
+            
+            agent = create_openai_tools_agent(llm_bingsearch, tools, CUSTOM_CHATBOT_PROMPT)
+        
+        agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+        
         brain_agent_executor = RunnableWithMessageHistory(
             agent_executor,
             self.get_session_history,
@@ -159,7 +173,9 @@ class MyBot(ActivityHandler):
 
         await turn_context.send_activity(Activity(type=ActivityTypes.typing))
         
-        answer = brain_agent_executor.invoke({"question": input_text}, config=config)["output"]
+        response = brain_agent_executor.invoke({"question": input_text}, config=config)
+
+        answer = response["output"]
         
         await turn_context.send_activity(answer)
 
