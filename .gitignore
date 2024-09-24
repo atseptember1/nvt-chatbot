@@ -13,6 +13,7 @@ backend*
 .amlignore.amltmp
 .env.nvt
 _03_ChatGPT.py
+.env.customer
 
 # Distribution / packaging
 .Python
