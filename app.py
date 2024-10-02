@@ -77,9 +77,13 @@ async def messages(req: Request) -> Response:
         return json_response(data=response.body, status=response.status)
     return Response(status=201)
 
+async def healthcheck(req: Request) -> Response:
+    return Response(text= "OK", status=200)
+
 
 APP = web.Application(middlewares=[aiohttp_error_middleware])
 APP.router.add_post("/api/messages", messages)
+APP.router.add_get("/", healthcheck)
 
 if __name__ == "__main__":
     try:
