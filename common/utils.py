@@ -286,11 +286,15 @@ def get_next_page(headers, params, file_name, file_number, sas_token, score, ind
     else:
         return None, None
 
-def get_search_results(query: str, indexes: list, 
+def get_search_results(chat_session_history: List[Any], indexes: list, 
                        k: int = 20,
                        reranker_threshold: int = 1,
                        sas_token: str = "") -> List[dict]:
     """Performs multi-index hybrid search and returns ordered dictionary with the combined results"""
+
+    query = get_search_phrase(chat_session_history)
+
+    print(f"----------- QUERY: {query} -----------")
     
     headers = {'Content-Type': 'application/json','api-key': os.environ["AZURE_SEARCH_KEY"]}
     params = {'api-version': os.environ['AZURE_SEARCH_API_VERSION']}
@@ -363,13 +367,14 @@ class CustomAzureSearchRetriever(BaseRetriever):
     topK : int
     reranker_threshold : int
     sas_token : str = ""
+    chat_session_history: List[Any] = []
     
     
     def _get_relevant_documents(
         self, input: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List[Document]:
         
-        ordered_results = get_search_results(input, self.indexes, k=self.topK, reranker_threshold=self.reranker_threshold, sas_token=self.sas_token)
+        ordered_results = get_search_results(self.chat_session_history, self.indexes, k=self.topK, reranker_threshold=self.reranker_threshold, sas_token=self.sas_token)
         
         top_docs = []
         for key,value in ordered_results.items():
@@ -403,6 +408,26 @@ def get_answer(llm: AzureChatOpenAI,
 
     return answer
 
+def get_search_phrase(messages_list):
+    llm_extractor = AzureChatOpenAI(deployment_name="gpt-4o", temperature=0.0, max_tokens=1500, streaming=True)
+
+    # DEFINE PROMPT
+    system_message_to_extract_search_phrase = (
+        "system", 
+        """
+        Given the following conversation, rewrite the last user input to reflect what the user is actually asking. 
+        You **must** respond in the **same** language of the conversation
+        Be short and concise
+        """)
+    conversation_to_extract_search_phrase = [system_message_to_extract_search_phrase] + messages_list
+    prompt_to_extract_search_phrase = ChatPromptTemplate.from_messages(conversation_to_extract_search_phrase)
+    
+    # DEFINE FLOW
+    search_phrase_extractor = prompt_to_extract_search_phrase | llm_extractor
+    
+    # RETRIEVE SEARCH PHRASE
+    search_phrase = search_phrase_extractor.invoke({})
+    return search_phrase.content
     
 
 #####################################################################################################
@@ -425,13 +450,18 @@ class GetDocSearchResults_Tool(BaseTool):
     k: int = 10
     reranker_th: int = 1
     sas_token: str = "" 
+    chat_session_history: List[Any] = []
 
     def _run(
         self, query: str,  return_direct = False, run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
 
-        retriever = CustomAzureSearchRetriever(indexes=self.indexes, topK=self.k, reranker_threshold=self.reranker_th, 
-                                               sas_token=self.sas_token, callback_manager=self.callbacks)
+        retriever = CustomAzureSearchRetriever(chat_session_history=self.chat_session_history, 
+                                               indexes=self.indexes, 
+                                               topK=self.k, 
+                                               reranker_threshold=self.reranker_th, 
+                                               sas_token=self.sas_token, 
+                                               callback_manager=self.callbacks)
         results = retriever.invoke(input=query)
         
         return results

@@ -22,6 +22,7 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langchain.callbacks.manager import CallbackManager
 from langchain.schema import AgentAction, AgentFinish, LLMResult
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from azure.cosmos import CosmosClient, PartitionKey
 
 #custom libraries that we will use later in the app
 from common.utils import (
@@ -116,9 +117,16 @@ class MyBot(ActivityHandler):
         cb_handler = BotServiceCallbackHandler(turn_context)
         cb_manager = CallbackManager(handlers=[cb_handler])
 
+        #Setup Chat Session history
+
+        cosmos = self.get_session_history(session_id, user_id)
+        cosmos.load_messages()
+        chat_history = cosmos.messages
+        chat_history += [("human", turn_context.activity.text)]
+
         # DocSearch tool
         indexes = [os.environ['AZURE_SEARCH_INDEX']]
-        tools = [GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])]
+        tools = [GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'], chat_session_history=chat_history)]
 
         # Set LLM 
         llm = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
