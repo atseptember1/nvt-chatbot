@@ -11,9 +11,8 @@ _create_ai_search_index.py
 backend*
 .amlignore
 .amlignore.amltmp
-.env.nvt
+.env.*
 _03_ChatGPT.py
-.env.customer
 
 # Distribution / packaging
 .Python

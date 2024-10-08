@@ -1,35 +1,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 import os
-import re
-import asyncio
-import random
-import requests
-import json
 import time
 
-from concurrent.futures import ThreadPoolExecutor
+from operator import itemgetter
 from typing import Any, Dict, List, Optional, Union
 
 from langchain_openai import AzureChatOpenAI
-from langchain_community.utilities import BingSearchAPIWrapper
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain_core.runnables import ConfigurableField, ConfigurableFieldSpec
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_community.chat_message_histories import ChatMessageHistory, CosmosDBChatMessageHistory
-from langchain.agents import ConversationalChatAgent, AgentExecutor, Tool
+from langchain_core.runnables import ConfigurableFieldSpec
+from langchain_community.chat_message_histories import CosmosDBChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.callbacks.manager import CallbackManager
-from langchain.schema import AgentAction, AgentFinish, LLMResult
+from langchain.schema import AgentAction
 from langchain_core.runnables.history import RunnableWithMessageHistory
-
-#custom libraries that we will use later in the app
-from common.utils import (
-    GetDocSearchResults_Tool,
-    BingSearchAgent,
-    get_search_results
-)
-from common.prompts import CUSTOM_CHATBOT_PROMPT, WELCOME_MESSAGE, AGENT_DOCSEARCH_PROMPT
+from langchain_core.output_parsers import StrOutputParser
+from common.utils import CustomAzureSearchRetriever
+from common.prompts import WELCOME_MESSAGE, DOCSEARCH_PROMPT
 
 from botbuilder.core import ActivityHandler, TurnContext
 from botbuilder.schema import ChannelAccount, Activity, ActivityTypes
@@ -125,27 +111,25 @@ class MyBot(ActivityHandler):
                                         max_tokens=1500, callback_manager=cb_manager, streaming=True)
 
         indexes = [os.environ['AZURE_SEARCH_INDEX']]
-        search_retriever = GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])
-        search_results = search_retriever.invoke(input_text)
-        # DocSearch tool
-        tools = [GetDocSearchResults_Tool(indexes=indexes, k=20, reranker_th=1, sas_token=os.environ['BLOB_SAS_TOKEN'])]
 
-        agent = create_openai_tools_agent(llm_docsearch, tools, AGENT_DOCSEARCH_PROMPT)
-
-        if not(search_results) or "@bing" in input_text:
-            # BingSearch tool
-
-            tools = [BingSearchAgent(llm=llm_bingsearch, k=5, callback_manager=cb_manager, 
-                             name="bing",
-                             description="useful when the questions includes the term: bing",
-                             verbose=False)]
-            
-            agent = create_openai_tools_agent(llm_bingsearch, tools, CUSTOM_CHATBOT_PROMPT)
+        # Set LLM 
+        llm = AzureChatOpenAI(deployment_name=self.model_name, temperature=0, 
+                              max_tokens=1500, callback_manager=cb_manager, streaming=True)
         
-        agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-        
+        retriever = CustomAzureSearchRetriever(indexes=indexes, topK=20, reranker_threshold=1, sas_token=os.environ['BLOB_SAS_TOKEN'])
+
+        chain = (
+            {
+                "context": itemgetter("question") | retriever, 
+                "question": itemgetter("question"),
+                "history": itemgetter("history")
+            }
+            | DOCSEARCH_PROMPT
+            | llm
+        )
+
         brain_agent_executor = RunnableWithMessageHistory(
-            agent_executor,
+            chain,
             self.get_session_history,
             input_messages_key="question",
             history_messages_key="history",
@@ -167,16 +151,11 @@ class MyBot(ActivityHandler):
                     is_shared=True,
                 ),
             ],
-        )
-        
-        config={"configurable": {"session_id": session_id, "user_id": user_id}}
+        ) | StrOutputParser()
 
         await turn_context.send_activity(Activity(type=ActivityTypes.typing))
-        
-        response = brain_agent_executor.invoke({"question": input_text}, config=config)
-
-        answer = response["output"]
-        
+        config={"configurable": {"session_id": session_id, "user_id": user_id}}
+        answer = brain_agent_executor.invoke({"question": input_text}, config=config)
         await turn_context.send_activity(answer)
 
         answer_ended = time.time()
