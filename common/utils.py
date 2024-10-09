@@ -377,6 +377,69 @@ class CustomAzureSearchRetriever(BaseRetriever):
             top_docs.append(Document(page_content=value["chunk"], metadata={"source": location, "score":value["score"]}))
 
         return top_docs
+    
+class BingSearchInput(BaseModel):
+    query: str = Field(description="should be a search query")
+
+class MyBingSearch(BaseTool):
+    """Tool for a Bing Search Wrapper"""
+    
+    name = "Searcher"
+    description = "useful to search the internet.\n"
+    args_schema: Type[BaseModel] = BingSearchInput
+
+    k: int = 5
+    
+    def _run(self, query: str, run_manager: Optional[CallbackManagerForToolRun] = None) -> str:
+        bing = BingSearchAPIWrapper(k=self.k)
+        return bing.results(query,num_results=self.k)
+            
+    async def _arun(self, query: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None) -> str:
+        bing = BingSearchAPIWrapper(k=self.k)
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(ThreadPoolExecutor(), bing.results, query, self.k)
+        return results
+    
+def parse_html(content) -> str:
+    soup = BeautifulSoup(content, 'html.parser')
+    text_content_with_links = soup.get_text()
+    return text_content_with_links
+
+def fetch_web_page(url: str) -> str:
+    HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0'}
+    response = requests.get(url, headers=HEADERS)
+    return parse_html(response.content)
+
+web_fetch_tool = StructuredTool.from_function(
+    func=fetch_web_page,
+    name="WebFetcher",
+    description="useful to fetch the content of a url"
+)
+    
+class CustomBingRetriever(BaseRetriever):
+    
+    topK : int
+    
+    def _get_relevant_documents(
+        self, input: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> List[Document]:
+        bing = BingSearchAPIWrapper(k=self.topK)
+        bing_results = bing.results(input,num_results=self.topK)
+
+        top_docs = []
+        no_page_fetch = 0
+        for r in bing_results:
+            web_url, web_content, web_title = r["link"], r["snippet"], r["title"]
+            top_docs.append(Document(page_content=web_content, metadata={"source": web_url, "title": web_title}))
+            if no_page_fetch <= 2:
+                try: 
+                    page_content = fetch_web_page(web_url)
+                    top_docs.append(Document(page_content=page_content, metadata={"source": web_url, "title": web_title}))
+                    no_page_fetch += 1
+                except Exception as e:
+                    print(e)
+                    
+        return top_docs
 
     
 def get_answer(llm: AzureChatOpenAI,
@@ -637,7 +700,7 @@ class ChatGPTTool(BaseTool):
             print(e)
             return str(e)  # Return an error indicator
                
-    
+
     
 class GetBingSearchResults_Tool(BaseTool):
     """Tool for a Bing Search Wrapper"""
@@ -682,14 +745,14 @@ class BingSearchAgent(BaseTool):
     def __init__(self, **data):
         super().__init__(**data)
         
-        web_fetch_tool = Tool.from_function(
+        web_fetch_tool = StructuredTool.from_function(
             func=self.fetch_web_page,
             name="WebFetcher",
             description="useful to fetch the content of a url"
         )
 
-        tools = [GetBingSearchResults_Tool(k=self.k)]
-        # tools = [GetBingSearchResults_Tool(k=self.k), web_fetch_tool] # Uncomment if using GPT-4
+        # tools = [GetBingSearchResults_Tool(k=self.k)]
+        tools = [GetBingSearchResults_Tool(k=self.k), web_fetch_tool] # Uncomment if using GPT-4
         
         agent = create_openai_tools_agent(self.llm, tools, BINGSEARCH_PROMPT)
 
