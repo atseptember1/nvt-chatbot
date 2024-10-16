@@ -55,6 +55,7 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from operator import itemgetter
 from typing import List
+from urllib.parse import urlparse, parse_qs
 
 
 
@@ -94,6 +95,38 @@ def table_to_html(table):
     table_html += "</table>"
     return table_html
 
+def parse_citation(text):
+    pattern = r'\[\[(\d+)\]\]\((.*?)\)'
+    
+    # Find all matches
+    matches = re.findall(pattern, text)
+    
+    citation_numbers = []
+    citation_docs = []
+    citation_links = []
+    
+    for number, link in matches:
+        citation_numbers.append(int(number))
+        
+        # Parse the URL to extract the filename
+        parsed_url = urlparse(link)
+        query_params = parse_qs(parsed_url.query)
+        path = parsed_url.path
+        filename = path.split('/')[-1]
+        citation_docs.append(filename)
+        
+        citation_links.append(link)
+
+    print(citation_numbers, citation_docs, citation_links)
+
+    link_template = """**[{num}]** [{doc}]({link})"""
+
+    if citation_numbers and citation_docs and citation_links:
+        if (len(citation_numbers) == len(citation_docs)) and (len(citation_numbers) == len(citation_links)):
+            citations = [link_template.format(num=n, link=l, doc=d) for n, l, d in zip(citation_numbers, citation_links, citation_docs)]
+            return "\n\n" + "\n\n".join(citations)
+        
+    return ""
 
 def parse_pdf(file, form_recognizer=False, formrecognizer_endpoint=None, formrecognizerkey=None, model="prebuilt-document", from_url=False, verbose=False):
     """Parses PDFs using PyPDF or Azure Document Intelligence SDK (former Azure Form Recognizer)"""

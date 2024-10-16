@@ -79,6 +79,22 @@ chain_with_history = RunnableWithMessageHistory(
     ],
 )
 
+st.markdown(
+    """
+<style>
+    .st-emotion-cache-1c7y2kd {
+        flex-direction: row-reverse;
+        text-align: right;
+    }
+    .st-emotion-cache-bho8sy {
+        background-image: url("https://global.kyocera.com/favicon.ico")
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
 st.title("Noventiq Smartbot")
 
 # Initialize chat history

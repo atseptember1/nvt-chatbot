@@ -1,126 +1,143 @@
-import os
 import streamlit as st
-import streamlit.components.v1 as components
+import os
+import time
 
-# From here down is all the StreamLit UI.
-st.set_page_config(page_title="GPT Smart Agent", page_icon="📖", layout="wide")
-# Add custom CSS styles to adjust padding
-    
-st.markdown("""
-        <style>
-               .block-container {
-                    padding-top: 1rem;
-                    padding-bottom: 0rem;
-                }
-        </style>
-        """, unsafe_allow_html=True)
+from operator import itemgetter
+from langchain_openai import AzureChatOpenAI
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.chat_message_histories import CosmosDBChatMessageHistory
+from langchain_core.runnables import ConfigurableFieldSpec
+from langchain.tools.retriever import create_retriever_tool
+from langchain.agents import AgentExecutor, create_openai_tools_agent
 
 
-BOT_SERVICE_DIRECT_LINE_SECRET = os.environ.get("BOT_SERVICE_DIRECT_LINE_SECRET")
+from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation
+from common.prompts import WELCOME_MESSAGE, DOCSEARCH_PROMPT, AGENT_DOCSEARCH_PROMPT
+from dotenv import load_dotenv
+from uuid import uuid4
 
-components.html(
-f"""
-<html>
-  <head>
-    <script
-      crossorigin="anonymous"
-      src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"
-    ></script>
-    <script crossorigin="anonymous" src="https://unpkg.com/markdown-it@10.0.0/dist/markdown-it.min.js"></script>
-     <style>
-      html,
-      body {{
-          height: 100%;
-          background-color: white;
-          background-size: cover;
-          color: black;
-          font-family: 'Segoe UI', Calibri, sans-serif;
-      }}
+load_dotenv()
 
-      body {{
-        padding-left: 5px;
-      }}
+# SETUP
+AZURE_OPENAI_MODEL_NAME = os.environ.get("AZURE_OPENAI_MODEL_NAME")
+os.environ["OPENAI_API_VERSION"] = os.environ.get("AZURE_OPENAI_API_VERSION")
 
-      #webchat {{
-        height: 85%;
-        width: 100%;
-      }}
+def get_session_history(session_id, user_id):
+    cosmos = CosmosDBChatMessageHistory(
+        cosmos_endpoint=os.environ['AZURE_COSMOSDB_ENDPOINT'],
+        cosmos_database=os.environ['AZURE_COSMOS_DATABASE_NAME'],
+        cosmos_container=os.environ['AZURE_COSMOSDB_CONTAINER_NAME'],
+        connection_string=os.environ['AZURE_COMOSDB_CONNECTION_STRING'],
+        session_id=session_id,
+        user_id=user_id
+    )
+    cosmos.prepare_cosmos()
+    return cosmos
 
-      .webchat__send-box{{
-        margin-top: 25px;
-        background-color: "black";
-        border-style: solid;
-        border-width: 1px;
-      }}
+llm = AzureChatOpenAI(deployment_name=AZURE_OPENAI_MODEL_NAME, 
+                      temperature=0, 
+                      max_tokens=1500, 
+                      streaming=True)
 
-      
-      
-    </style>
-  </head>
-  <body>
-    
-    <h1><img src='https://noventiq.com/images/svg/noventiq/logo.svg' height="60"></h1> 
-    <div id="webchat" role="main"></div>
-    <script>
-      // Set  the CSS rules.
-      const styleSet = window.WebChat.createStyleSet({{
-          bubbleBackground: 'transparent',
-          bubbleBorderColor: 'darkslategrey',
-          bubbleBorderRadius: 5,
-          bubbleBorderStyle: 'solid',
-          bubbleBorderWidth: 0,
-          bubbleTextColor: 'black',
+indexes = [os.environ['AZURE_SEARCH_INDEX']]
 
-          userAvatarBackgroundColor: 'rgba(53, 55, 64, .3)',
-          bubbleFromUserBackground: 'transparent', 
-          bubbleFromUserBorderColor: '#E6E6E6',
-          bubbleFromUserBorderRadius: 5,
-          bubbleFromUserBorderStyle: 'solid',
-          bubbleFromUserBorderWidth: 0,
-          bubbleFromUserTextColor: 'black',
+retriever = CustomAzureSearchRetriever(indexes=indexes, topK=20, reranker_threshold=1, sas_token=os.environ['BLOB_SAS_TOKEN'])
 
-          notificationText: 'white',
+chain = (
+    {
+        "context": itemgetter("question") | retriever, 
+        "question": itemgetter("question"), 
+        "history": itemgetter("history")
+    } 
+        | DOCSEARCH_PROMPT 
+        | llm
+    )
 
-          bubbleMinWidth: 400,
-          bubbleMaxWidth: 720,
+chain_with_history = RunnableWithMessageHistory(
+    chain,
+    get_session_history,
+    input_messages_key="question",
+    history_messages_key="history",
+    history_factory_config=[
+        ConfigurableFieldSpec(
+            id="user_id",
+            annotation=str,
+            name="User ID",
+            description="Unique identifier for the user.",
+            default="",
+            is_shared=True,
+        ),
+        ConfigurableFieldSpec(
+            id="session_id",
+            annotation=str,
+            name="Session ID",
+            description="Unique identifier for the conversation.",
+            default="",
+            is_shared=True,
+        ),
+    ],
+) | StrOutputParser()
 
-          botAvatarBackgroundColor: 'white',
-          avatarBorderRadius: 40,
-          avatarSize: 40,
+st.markdown(
+    """
+<style>
+    .st-emotion-cache-1c7y2kd {
+        flex-direction: row-reverse;
+        text-align: right;
+    }
+    .st-emotion-cache-bho8sy {
+        background-image: url("https://global.kyocera.com/favicon.ico")
+    }
+    .st-emotion-cache-1pbsqtx {
+        display: none;
+        visibility: hidden;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
-          rootHeight: '100%',
-          rootWidth: '100%',
-          backgroundColor: 'rgba(70, 130, 180, .2)',
 
-          hideUploadButton: 'true'
-      }});
-      // After generated, you can modify the CSS rules.
-      // Change font family and weight. 
-      styleSet.textContent = {{
-          ...styleSet.textContent,
-          fontWeight: 'regular'
-      }};
+st.title("Noventiq Smartbot")
 
-      // Set the avatar options. 
-      const avatarOptions = {{
-          botAvatarInitials: '.',
-          userAvatarInitials: 'Me',
-          botAvatarImage: 'https://noventiq.com/favicon.ico',
-          
-          }};
-      const markdownIt = window.markdownit({{html:true}});
-      window.WebChat.renderWebChat(
-        {{
-          directLine: window.WebChat.createDirectLine({{
-            token: '{BOT_SERVICE_DIRECT_LINE_SECRET}'
-          }}),
-          renderMarkdown: markdownIt.render.bind(markdownIt),
-          styleSet, styleOptions: avatarOptions,
-          locale: 'en-US'
-        }},
-        document.getElementById('webchat')
-      );
-    </script>
-  </body>
-</html>
-""", height=800)
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid4())
+
+if "user_id" not in st.session_state:
+    st.session_state.user_id = "bingchat" + str(int(time.time()))
+
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Accept user input
+if prompt := st.chat_input("What is up?"):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+
+        config={"configurable": {"session_id": st.session_state.session_id, "user_id": st.session_state.user_id}}
+
+        with st.empty():
+            st.write("Searching...")
+            start = time.time()
+            response = chain_with_history.invoke({"question": prompt}, config=config)
+
+            print(response)
+            print(parse_citation(response))
+
+            st.write(f"Responded in {int(time.time() - start)}s" + "\n\n" + response + parse_citation(response))
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
