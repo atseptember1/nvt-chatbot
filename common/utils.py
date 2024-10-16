@@ -95,7 +95,7 @@ def table_to_html(table):
     table_html += "</table>"
     return table_html
 
-def parse_citation(text):
+def parse_citation(text, bingsearch=False):
     pattern = r'\[\[(\d+)\]\]\((.*?)\)'
     
     # Find all matches
