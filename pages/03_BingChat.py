@@ -98,24 +98,26 @@ st.markdown(
 st.title("Noventiq Smartbot")
 
 # Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid4())
 
 if "user_id" not in st.session_state:
-    st.session_state.user_id = "bingchat" + str(int(time.time()))
+    st.session_state.user_id = "docchat" + str(int(time.time()))
+
+if "messages" not in st.session_state:
+    st.session_state.messages = {
+        st.session_state.session_id: []
+    }
 
 # Display chat messages from history on app rerun
-for message in st.session_state.messages:
+for message in st.session_state.messages[st.session_state.session_id]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # Accept user input
 if prompt := st.chat_input("What is up?"):
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.messages[st.session_state.session_id].append({"role": "user", "content": prompt})
 
     # Display user message in chat message container
     with st.chat_message("user"):
@@ -141,4 +143,4 @@ if prompt := st.chat_input("What is up?"):
             response = chain_with_history.invoke({"question": prompt}, config=config)["output"]
             st.write(f"Responded in {int(time.time() - start)}s" + response)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages[st.session_state.session_id].append({"role": "assistant", "content": response})
