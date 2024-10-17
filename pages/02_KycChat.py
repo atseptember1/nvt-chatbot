@@ -106,7 +106,7 @@ st.markdown(
 )
 
 
-st.title("Noventiq Smartbot")
+st.title("Kyocera Internal Chatbot")
 
 # Initialize chat history
 if "session_id" not in st.session_state:
