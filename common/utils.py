@@ -123,7 +123,10 @@ def parse_citation(text, bingsearch=False):
 
     if citation_numbers and citation_docs and citation_links:
         if (len(citation_numbers) == len(citation_docs)) and (len(citation_numbers) == len(citation_links)):
-            citations = [link_template.format(num=n, link=l, doc=d) for n, l, d in zip(citation_numbers, citation_links, citation_docs)]
+            if bingsearch:
+                citations = [link_template.format(num=n, link=l, doc=l) for n, l in zip(citation_numbers, citation_links)]
+            else:
+                citations = [link_template.format(num=n, link=l, doc=d) for n, l, d in zip(citation_numbers, citation_links, citation_docs)]
             citations = sorted(list(set(citations)))
             return "\n\n" + "\n\n".join(citations)
         

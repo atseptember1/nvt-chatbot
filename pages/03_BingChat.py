@@ -12,7 +12,7 @@ from langchain.tools.retriever import create_retriever_tool
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 
 
-from common.utils import CustomAzureSearchRetriever, CustomBingRetriever
+from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation
 from common.prompts import WELCOME_MESSAGE, DOCSEARCH_PROMPT, AGENT_DOCSEARCH_PROMPT
 from dotenv import load_dotenv
 from uuid import uuid4
@@ -83,11 +83,22 @@ st.markdown(
     """
 <style>
     .st-emotion-cache-1c7y2kd {
-        flex-direction: row-reverse;
-        text-align: right;
+        width: 50%;
+        margin-left: auto;
+        align-self: flex-end;
+        text-align: left;
+        box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.3);
     }
     .st-emotion-cache-bho8sy {
         background-image: url("https://global.kyocera.com/favicon.ico")
+    }
+    .st-emotion-cache-1ghhuty {
+        display: none;
+        visibility: hidden;
+    }
+    .st-emotion-cache-1pbsqtx {
+        display: none;
+        visibility: hidden;
     }
 </style>
 """,
@@ -139,6 +150,7 @@ if prompt := st.chat_input("What is up?"):
             st.write("Searching...")
             start = time.time()
             response = chain_with_history.invoke({"question": prompt}, config=config)["output"]
+            response = "\n\n" + response + parse_citation(response, True)
             st.write(f"Responded in {int(time.time() - start)}s" + response)
 
     st.session_state.bing_messages.append({"role": "assistant", "content": response})

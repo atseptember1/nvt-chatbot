@@ -83,11 +83,18 @@ st.markdown(
     """
 <style>
     .st-emotion-cache-1c7y2kd {
-        flex-direction: row-reverse;
-        text-align: right;
+        width: 50%;
+        margin-left: auto;
+        align-self: flex-end;
+        text-align: left;
+        box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.3);
     }
     .st-emotion-cache-bho8sy {
         background-image: url("https://global.kyocera.com/favicon.ico")
+    }
+    .st-emotion-cache-1ghhuty {
+        display: none;
+        visibility: hidden;
     }
     .st-emotion-cache-1pbsqtx {
         display: none;
