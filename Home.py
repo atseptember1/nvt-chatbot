@@ -14,9 +14,9 @@ blob_service_client = BlobServiceClient(BLOB_URL, credential=BLOB_ADMIN_TOKEN)
 container_client = blob_service_client.get_container_client(container=BLOB_CONTAINER_NAME)
 content_settings = ContentSettings(content_type='application/pdf')
 
-st.set_page_config(page_title="Noventiq Smart Bot", page_icon="📖", layout="wide")
+st.set_page_config(page_title="Kyocera ChatBot", page_icon="📖", layout="wide")
 
-st.header("Noventiq Smart Bot")
+st.header("Kyocera ChatBot")
 
 # uploaded_files = st.file_uploader("Choose documents", type=["pdf"], accept_multiple_files=True)
 # for uploaded_file in uploaded_files:

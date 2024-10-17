@@ -151,6 +151,8 @@ if prompt := st.chat_input("What is up?"):
             start = time.time()
             response = chain_with_history.invoke({"question": prompt}, config=config)["output"]
             response = "\n\n" + response + parse_citation(response, True)
-            st.write(f"Responded in {int(time.time() - start)}s" + response)
+            st.write(response)
+            stop = time.time()
+            print(f"Responded in {int(stop - start)}s")
 
     st.session_state.bing_messages.append({"role": "assistant", "content": response})

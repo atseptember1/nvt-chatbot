@@ -140,13 +140,10 @@ if prompt := st.chat_input("What is up?"):
             st.write("Searching...")
             start = time.time()
             response = chain_with_history.invoke({"question": prompt}, config=config)
-
-            print(response)
-            print(parse_citation(response))
-
             response = "\n\n" + response + parse_citation(response)
-
-            st.write(f"Responded in {int(time.time() - start)}s" + response)
+            st.write(response)
+            stop = time.time()
+            print(f"Responded in {int(stop - start)}s")
 
     st.session_state.doc_messages.append({"role": "assistant", "content": response})
 
