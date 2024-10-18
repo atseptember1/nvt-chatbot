@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import time
+import base64
 
 from operator import itemgetter
 from langchain_openai import AzureChatOpenAI
@@ -12,7 +13,7 @@ from langchain.tools.retriever import create_retriever_tool
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 
 
-from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation
+from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation, format_citation
 from common.prompts import WELCOME_MESSAGE, DOCSEARCH_PROMPT, AGENT_DOCSEARCH_PROMPT
 from dotenv import load_dotenv
 from uuid import uuid4
@@ -79,15 +80,40 @@ chain_with_history = RunnableWithMessageHistory(
     ],
 )
 
+@st.cache_resource()
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_png_as_page_bg(png_file):
+    bin_str = get_base64_of_bin_file(png_file)
+    page_bg_img = '''
+    <style>
+    .st-emotion-cache-12fmjuu {
+    background-image: url("data:image/png;base64,%s");
+    background-size: cover;
+    }
+    </style>
+    ''' % bin_str
+    
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+    return
+
+set_png_as_page_bg('./pages/external-chatbot.png')
+
 st.markdown(
     """
 <style>
     .st-emotion-cache-1c7y2kd {
-        width: 50%;
+        display: inline-block;
+        max-width: 50%;
         margin-left: auto;
         align-self: flex-end;
         text-align: left;
         box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.3);
+        padding: 10px; /* Add some padding for better appearance */
+        border-radius: 15px;
     }
     .st-emotion-cache-bho8sy {
         background-image: url("https://global.kyocera.com/favicon.ico")
@@ -100,13 +126,11 @@ st.markdown(
         display: none;
         visibility: hidden;
     }
+
 </style>
 """,
     unsafe_allow_html=True,
 )
-
-
-st.title("Kyocera External Chatbot")
 
 # Initialize chat history
 if "bing_session_id" not in st.session_state:
@@ -124,7 +148,7 @@ for message in st.session_state.bing_messages:
         st.markdown(message["content"])
 
 # Accept user input
-if prompt := st.chat_input("What is up?"):
+if prompt := st.chat_input("Enter your message"):
     # Add user message to chat history
     st.session_state.bing_messages.append({"role": "user", "content": prompt})
 
@@ -147,10 +171,11 @@ if prompt := st.chat_input("What is up?"):
         config={"configurable": {"session_id": st.session_state.session_id, "user_id": st.session_state.user_id}}
 
         with st.empty():
-            st.write("Searching...")
+            st.write("...")
             start = time.time()
             response = chain_with_history.invoke({"question": prompt}, config=config)["output"]
-            response = "\n\n" + response + parse_citation(response, True)
+            # response = "\n\n" + response + parse_citation(response, True)
+            response = format_citation(response)
             st.write(response)
             stop = time.time()
             print(f"Responded in {int(stop - start)}s")

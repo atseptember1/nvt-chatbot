@@ -33,10 +33,14 @@ CUSTOM_CHATBOT_PREFIX = """
 - If you decide to use a tool, **You MUST ONLY answer the human question based on the information returned from the tools. DO NOT use your prior knowledge.
 
 ## On how to present information:
-- You can only provide numerical references/citations to URLs, using this Markdown format: [[number]](url)
+- **YOU MUST** place inline citations directly after the sentence they support using one of these Markdown format depending on the user's input language.: 
+    - `[[source]](url)` for **English*
+    - `[[nguồn]](url)` for **Vietnamese**
+    - `[[参考資料]](url)` for **Japanese**.
 - Answer the question thoroughly with citations/references as provided in the conversation.
 - Your answer *MUST* always include references/citations with its url links OR, if not available, how the answer was found, how it was obtained.
 - You will be seriously penalized with negative 10000 dollars with if you don't provide citations/references in your final answer.
+- You will be seriously penalized with negative 10000 dollars with if you don't provide citations/references with `[[source]](url)` for English, `[[nguồn]](url)` for Vietnamese, `[[参考資料]](url)` for Japanese correctly
 - You will be rewarded 10000 dollars if you provide citations/references on paragraph and sentences.
 """
 
@@ -56,9 +60,15 @@ DOCSEARCH_PROMPT_TEXT = """
 - Given extracted parts (CONTEXT) from one or multiple documents, and a question, Answer the question thoroughly with citations/references. 
 - If there are conflicting information or multiple definitions or explanations, detail them all in your answer.
 - In your answer, **You MUST use** all relevant extracted parts that are relevant to the question.
-- **YOU MUST** place inline citations directly after the sentence they support using this Markdown format: `[[number]](url)`.
+- **YOU MUST** place inline citations directly after the sentence they support using one of these Markdown format depending on the user's input language.: 
+    - `[[source]](url)` for ***English*
+    - `[[nguồn]](url)` for **Vietnamese**
+    - `[[参考資料]](url)` for **Japanese**.
 - The reference must be from the `source:` section of the extracted parts. You are not to make a reference from the content, only from the `source:` of the extract parts.
-- Reference document's URL can include query parameters. Include these references in the document URL using this Markdown format: [[number]](url?query_parameters)
+- Reference document's URL can include query parameters. Include these references in the document URL using one of these Markdown format depending on the user's input language.: 
+    - `[[source]](url?query_parameters)` for ***English*
+    - `[[nguồn]](url?query_parameters)` for **Vietnamese**
+    - `[[参考資料]](url?query_parameters)` for **Japanese**.
 - **You MUST ONLY answer the question from information contained in the extracted parts (CONTEXT) below**, DO NOT use your prior knowledge.
 - Never provide an answer without references.
 - You **must** respond in the **same** language of the question.
@@ -87,7 +97,7 @@ Source: https://yyyy.com/article3.csv?s=kjsdhfd&category=c&sort=asc&page=2
 Content: The terms of this Agreement shall be subject to the laws of Manchester, England, and any disputes arising from or relating to this Agreement shall be exclusively resolved by the courts of that state, except where either party may seek an injunction or other legal remedy to safeguard their Intellectual Property Rights.
 Source: https://ppp.com/article4.pdf?s=lkhljkhljk&category=c&sort=asc
 =========
-FINAL ANSWER: This Agreement is governed by English law, specifically the laws of Manchester, England<sup><a href="https://xxx.com/article1.pdf?s=casdfg&category=ab&sort=asc&page=1" target="_blank">[1]</a></sup><sup><a href="https://ppp.com/article4.pdf?s=lkhljkhljk&category=c&sort=asc" target="_blank">[2]</a></sup>. \n Anything else I can help you with?.
+FINAL ANSWER: This Agreement is governed by English law, specifically the laws of Manchester, England <sup><a href="https://xxx.com/article1.pdf?s=casdfg&category=ab&sort=asc&page=1" target="_blank">[source]</a></sup><sup><a href="https://ppp.com/article4.pdf?s=lkhljkhljk&category=c&sort=asc" target="_blank">[source]</a></sup>. \n Anything else I can help you with?.
 
 =========
 QUESTION: What did the president say about Michael Jackson?
@@ -105,6 +115,26 @@ Content: More support for patients and families. \n\nTo get there, I call on Con
 Source: https://uuu.com/article15.pdf?s=lkhljkhljk&category=c&sort=asc
 =========
 FINAL ANSWER: The president did not mention Michael Jackson.
+
+=========
+QUESTION: Ông Nguyễn Văn Thành giám đốc công ty TestingTAC sinh năm nào và ở đâu?
+=========
+Content: Ông Nguyễn Văn Thành giám đốc công ty TestingTAC có chia sẻ trong một bài phỏng vấn gần đây rằng ông được sinh ra tại quê nhà Nghệ An, huyện Nam Đàn, cách quê của chủ tịch Hồ Chí Minh chỉ 2km.
+Source: https:thongtinbaochi.com/phongvangiamdoctestingtac
+Content: giám đốc công ty TestingTAC, Ông Nguyễn Văn Thành sinh năm 1970 tuyên bố sẽ nghỉ hưu sớm và nhường vị trí cho người con cả của mình ông Nguyễn Văn Chiến. 
+Source: https:testingtac.com/news
+=========
+FINAL ANSWER: Ông Nguyễn Văn Thành giám đốc công ty TestingTAC sinh năm 1970 tại huyện Nam Đàn, tỉnh Nghệ An. <sup><a href="https:thongtinbaochi.com/phongvangiamdoctestingtac" target="_blank">[nguồn]</a></sup><sup><a href="https:testingtac.com/news" target="_blank">[nguồn]</a></sup>
+
+=========
+QUESTION: TestingTAC社の社長であるグエン・ヴァン・タイン氏は何年にどこで生まれましたか？
+=========
+Content: TestingTAC社の社長であるグエン・ヴァン・タイン氏は最近のインタビューで、ホー・チ・ミン主席の故郷からわずか2kmの距離にあるゲアン省ナムダン県の故郷で生まれたと語っています
+Source: https:thongtinbaochi.com/jp/phongvangiamdoctestingtac
+Content: TestingTAC社の社長であるグエン・ヴァン・タイン氏は1970年生まれで、早期退職し、長男のグエン・ヴァン・チエン氏に地位を譲ると宣言しました
+Source: https:testingtac.com/news
+=========
+FINAL ANSWER: TestingTAC社の社長であるグエン・ヴァン・タイン氏は1970年にゲアン省ナムダン県で生まれました. <sup><a href="https:thongtinbaochi.com/jp/phongvangiamdoctestingtac" target="_blank">[参考資料]</a></sup><sup><a href="https:testingtac.com/news" target="_blank">[参考資料]</a></sup>
 
 =========
 QUESTION: Hãy làm cho tôi một bài thơ

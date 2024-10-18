@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Awaitable, Callable, Tuple, Type, 
 import requests
 import asyncio
 import re
+import langdetect
 
 from collections import OrderedDict
 import base64
@@ -94,6 +95,19 @@ def table_to_html(table):
         table_html +="</tr>"
     table_html += "</table>"
     return table_html
+
+def format_citation(text):
+    print(text)
+
+    try:
+        lang = langdetect.detect(text)
+        if lang == 'vi':
+            text = text.replace("[[source]]", "[[nguồn]]")
+        elif lang == 'ja':
+            text = text.replace("[[source]]", "[[参考資料]]")
+        return text
+    except langdetect.lang_detect_exception.LangDetectException:
+        return text
 
 def parse_citation(text, bingsearch=False):
     pattern = r'\[\[(\d+)\]\]\((.*?)\)'
