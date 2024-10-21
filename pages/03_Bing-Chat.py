@@ -11,7 +11,9 @@ from langchain_community.chat_message_histories import CosmosDBChatMessageHistor
 from langchain_core.runnables import ConfigurableFieldSpec
 from langchain.tools.retriever import create_retriever_tool
 from langchain.agents import AgentExecutor, create_openai_tools_agent
-
+from langchain.agents.format_scratchpad.openai_tools import format_to_openai_tool_messages
+from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+from langchain_core.messages import trim_messages
 
 from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation, format_citation
 from common.prompts import WELCOME_MESSAGE, DOCSEARCH_PROMPT, AGENT_DOCSEARCH_PROMPT
@@ -20,7 +22,7 @@ from uuid import uuid4
 
 load_dotenv()
 
-# SETUP
+# SETUP ENV
 AZURE_OPENAI_MODEL_NAME = os.environ.get("AZURE_OPENAI_MODEL_NAME")
 os.environ["OPENAI_API_VERSION"] = os.environ.get("AZURE_OPENAI_API_VERSION")
 
@@ -36,23 +38,43 @@ def get_session_history(session_id, user_id):
     cosmos.prepare_cosmos()
     return cosmos
 
+# SETUP LLM, Tool, Agent
+
+# LLM
 llm = AzureChatOpenAI(deployment_name=AZURE_OPENAI_MODEL_NAME, 
                       temperature=0, 
                       max_tokens=1500, 
                       streaming=True)
 
+# Retriver Tool
 retriever = CustomBingRetriever(topK=5)
-
 retriever_tool = create_retriever_tool(
             retriever,
             "bing_search",
             "Search for information about everything. If users want to retrieve any information, e.g: time, weather, general knowledge, etc. you must use this tool"
         )
-
 tools = [retriever_tool]
+
+# Prompt
 prompt = AGENT_DOCSEARCH_PROMPT
 
-agent = create_openai_tools_agent(llm, tools, prompt)
+# History Trimmer
+trimmer = trim_messages(strategy="last", max_tokens=10, token_counter=len)
+
+# Agent
+llm_with_tools = llm.bind_tools(tools)
+
+agent = (
+    {
+        "question": lambda x: x["question"],
+        "agent_scratchpad": lambda x: format_to_openai_tool_messages(x["intermediate_steps"]),
+        "history": itemgetter("history") | trimmer
+    }
+    | prompt
+    | llm_with_tools
+    | OpenAIToolsAgentOutputParser()
+)
+
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 
 chain_with_history = RunnableWithMessageHistory(

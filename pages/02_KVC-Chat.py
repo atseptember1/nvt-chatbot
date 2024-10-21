@@ -11,6 +11,7 @@ from langchain_community.chat_message_histories import CosmosDBChatMessageHistor
 from langchain_core.runnables import ConfigurableFieldSpec
 from langchain.tools.retriever import create_retriever_tool
 from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain_core.messages import trim_messages
 
 
 from common.utils import CustomAzureSearchRetriever, CustomBingRetriever, parse_citation, format_citation
@@ -42,14 +43,14 @@ llm = AzureChatOpenAI(deployment_name=AZURE_OPENAI_MODEL_NAME,
                       streaming=True)
 
 indexes = [os.environ['AZURE_SEARCH_INDEX']]
-
 retriever = CustomAzureSearchRetriever(indexes=indexes, topK=20, reranker_threshold=1, sas_token=os.environ['BLOB_SAS_TOKEN'])
+trimmer = trim_messages(strategy="last", max_tokens=10, token_counter=len)
 
 chain = (
     {
         "context": itemgetter("question") | retriever, 
         "question": itemgetter("question"), 
-        "history": itemgetter("history")
+        "history": itemgetter("history") | trimmer
     } 
         | DOCSEARCH_PROMPT 
         | llm
