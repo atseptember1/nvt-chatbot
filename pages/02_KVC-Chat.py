@@ -81,27 +81,28 @@ chain_with_history = RunnableWithMessageHistory(
     ],
 ) | StrOutputParser()
 
-# @st.cache_resource()
-# def get_base64_of_bin_file(bin_file):
-#     with open(bin_file, 'rb') as f:
-#         data = f.read()
-#     return base64.b64encode(data).decode()
+@st.cache_resource()
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
-# def set_png_as_page_bg(png_file):
-#     bin_str = get_base64_of_bin_file(png_file)
-#     page_bg_img = '''
-#     <style>
-#     .st-emotion-cache-12fmjuu {
-#     background-image: url("data:image/png;base64,%s");
-#     background-size: cover;
-#     }
-#     </style>
-#     ''' % bin_str
+def set_png_as_page_bg(png_file):
+    bin_str = get_base64_of_bin_file(png_file)
+    page_bg_img = '''
+    <style>
+    .st-emotion-cache-12fmjuu {
+    background-image: url("data:image/png;base64,%s");
+    background-size: auto;
+    background-repeat: no-repeat;
+    }
+    </style>
+    ''' % bin_str
     
-#     st.markdown(page_bg_img, unsafe_allow_html=True)
-#     return
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+    return
 
-# set_png_as_page_bg('./pages/internal-chatbot.png')
+set_png_as_page_bg('./pages/internal-chatbot.png')
 
 
 st.markdown(
@@ -133,7 +134,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title(":red[Kyocera Internal Chatbot]")
+# st.title(":red[Kyocera Internal Chatbot]")
 
 # Initialize chat history
 if "session_id" not in st.session_state:
@@ -178,7 +179,7 @@ if prompt := st.chat_input("Enter your message"):
 else:
     if not(st.session_state.doc_messages):
         with st.chat_message("assistant"):
-            greeting = "hello, I'm Kyocera Chatbot. How can I help you?"
+            greeting = "hello, I'm Kyocera Internal Chatbot. How can I help you?"
             st.write(greeting)
             st.session_state.doc_messages.append({"role": "assistant", "content": greeting})
 
